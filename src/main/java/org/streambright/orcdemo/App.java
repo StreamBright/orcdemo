@@ -1,5 +1,6 @@
 package org.streambright.orcdemo;
 
+import org.apache.hadoop.hive.ql.io.orc.OrcRecordUpdater;
 import org.apache.hadoop.hive.ql.io.orc.Writer;
 import org.apache.hadoop.hive.ql.io.orc.OrcFile;
 import org.apache.hadoop.hive.ql.io.orc.CompressionKind;
@@ -13,12 +14,14 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 
 import java.io.IOException;
+import java.util.UUID;
 
 
 public class App {
 
-    private static Configuration conf = new Configuration();
+    public static Configuration conf = new Configuration();
     public static Writer writer;
+    public static OrcFile.WriterOptions orc_options = OrcFile.writerOptions(conf);
     public static OrcFile.Version vers = OrcFile.Version.V_0_12;
     public static CompressionKind compr = CompressionKind.ZLIB;
 
@@ -43,12 +46,24 @@ public class App {
             conf = new Configuration();
             //FileSystem fs = FileSystem.getLocal(conf);
 
-            ObjectInspector ObjInspector = ObjectInspectorFactory.getReflectionObjectInspector(OrcRow.class, ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
-            writer = OrcFile.createWriter(new Path(path), OrcFile.writerOptions(conf).inspector(ObjInspector).stripeSize(100000).bufferSize(10000).compress(compr).version(vers));
+            ObjectInspector ObjInspector = ObjectInspectorFactory.
+                    getReflectionObjectInspector(OrcRow.class, ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
 
-            writer.addRow(new OrcRow(1, "hello", "orcFile"));
-            writer.addRow(new OrcRow(2, "hello2", "orcFile2"));
+            Path local_path = new Path(path);
 
+            orc_options.inspector(ObjInspector).
+                    stripeSize(8388608).
+                    bufferSize(8388608).
+                    blockPadding(true).
+                    // bloomFilterColumns("col1").
+                    compress(compr).
+                    version(vers);
+
+            writer = OrcFile.createWriter(local_path, orc_options);
+
+            for (int i=1; i<1100000; i++) {
+                writer.addRow(new OrcRow(i, UUID.randomUUID().toString(), "orcFile"));
+            }
             writer.close();
         } catch (Exception e) {
             e.printStackTrace();
